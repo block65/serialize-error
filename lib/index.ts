@@ -1,16 +1,16 @@
-import { CustomError } from '@block65/custom-error';
+import type { CustomError } from '@block65/custom-error';
 import { ErrorObject, serializeError as serialize } from 'serialize-error';
 
 export interface SerializedError {
   name: string;
   message: string;
   stack: string[];
-  internal?: boolean;
+  sensitive?: boolean;
   statusCode?: number;
-  previous?: ErrorObject[];
-}
+  previous?: SerializedError[];
 
-export type { CustomError }
+  [key: string]: unknown;
+}
 
 function flattenPreviousErrors(
   err: Error | CustomError,
@@ -23,25 +23,23 @@ function flattenPreviousErrors(
   return [...accum, err];
 }
 
-export function serializeError(
-  err: Error | CustomError,
-): SerializedError {
+export function serializeError(err: Error | CustomError): SerializedError {
   const previousErrors =
     'previous' in err && err.previous
       ? flattenPreviousErrors(err.previous)
       : [];
 
   return {
+    ...serialize(err),
     message: err.message,
     name: err.name,
-    ...('internal' in err ? { internal: err.internal } : {}),
     ...('statusCode' in err ? { statusCode: err.statusCode } : {}),
     stack: (err.stack || '')
       .split('\n')
       .map((frame): string => frame.trim())
       .slice(1),
-    previous: previousErrors.map(serialize),
-    internal: 'internal' in err ? err.internal : undefined,
+    ...('sensitive' in err ? { sensitive: err.sensitive } : {}),
+    previous: previousErrors.map(serializeError),
     ...('debug' in err ? { debug: err.debug() } : {}),
   };
 }

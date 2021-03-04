@@ -1,5 +1,5 @@
-import type { CustomError } from '@block65/custom-error';
-import { ErrorObject, serializeError as serialize } from 'serialize-error';
+import { CustomError } from '@block65/custom-error';
+import { serializeError as serialize } from 'serialize-error';
 
 export interface SerializedError {
   name: string;
@@ -23,23 +23,59 @@ function flattenPreviousErrors(
   return [...accum, err];
 }
 
-export function serializeError(err: Error | CustomError): SerializedError {
-  const previousErrors =
-    'previous' in err && err.previous
-      ? flattenPreviousErrors(err.previous)
-      : [];
+function prepareStack(stack?: string): string[] {
+  return (stack || '')
+    .split('\n')
+    .map((frame): string => frame.trim())
+    .slice(1);
+}
 
+export function serializeError(
+  err: unknown | Error | CustomError,
+): SerializedError {
+  if (err instanceof CustomError) {
+    const previousErrors =
+      'previous' in err && err.previous
+        ? flattenPreviousErrors(err.previous)
+        : [];
+
+    return {
+      ...serialize(err),
+      message: err.message,
+      name: err.name,
+      ...('statusCode' in err ? { statusCode: err.statusCode } : {}),
+      stack: prepareStack(err.stack),
+      ...('sensitive' in err ? { sensitive: err.sensitive } : {}),
+      previous: previousErrors.map(serializeError),
+      ...('debug' in err ? { debug: err.debug() } : {}),
+    };
+  }
+
+  if (err instanceof Error) {
+    return {
+      ...serialize(err),
+      message: err.message || '',
+      name: err.name || 'Error',
+      stack: prepareStack(err.stack),
+    };
+  }
+
+  if (typeof err === 'string' || typeof err === 'number') {
+    return {
+      message: err.toString(),
+      name: 'Error',
+      stack: prepareStack(Error().stack),
+    };
+  }
+
+  // Not an error object, maybe primitive or null, undefined
   return {
-    ...serialize(err),
-    message: err.message,
-    name: err.name,
-    ...('statusCode' in err ? { statusCode: err.statusCode } : {}),
-    stack: (err.stack || '')
-      .split('\n')
-      .map((frame): string => frame.trim())
-      .slice(1),
-    ...('sensitive' in err ? { sensitive: err.sensitive } : {}),
-    previous: previousErrors.map(serializeError),
-    ...('debug' in err ? { debug: err.debug() } : {}),
+    name: 'Error',
+    message: '',
+    stack: prepareStack(Error().stack),
+    debug: {
+      typeofErr: typeof err,
+      err,
+    },
   };
 }

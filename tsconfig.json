@@ -2,12 +2,12 @@
   "compilerOptions": {
     "strict": true,
     "declaration": true,
-    "target": "es2019",
+    "target": "es2020",
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "dist",
     "lib": [
-      "esnext"
+      "es2020"
     ],
     "removeComments": true
   },
